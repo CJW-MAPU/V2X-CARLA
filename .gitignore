@@ -1,0 +1,7 @@
+*.py
+requirements.txt
+.idea
+
+!custom_main.py
+!pilot_test.py
+!modules
