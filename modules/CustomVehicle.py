@@ -56,8 +56,6 @@ class CustomVehicle:
                 cls.__get_junction_path()
                 cls.__junction_autopilot()
 
-            # cls.__vehicle.apply_control(carla.VehicleControl(throttle = 0.0, brake = 0.5))
-
     @classmethod
     def __lane_autopilot(cls):
         for target_waypoint in cls.__path:
