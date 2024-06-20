@@ -1,7 +1,7 @@
 *.py
 requirements.txt
 .idea
+modules/__pycache__
 
-!custom_main.py
-!pilot_test.py
-!modules
+!main.py
+!modules/*.py

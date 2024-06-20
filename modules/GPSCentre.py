@@ -1,0 +1,2 @@
+class GPSCentre:
+    pass
