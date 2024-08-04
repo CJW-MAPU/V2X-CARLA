@@ -5,11 +5,9 @@ class CustomTrafficLight:
     __world: carla.World = None
     __traffic_light = carla.TrafficLight = None
 
-    @classmethod
-    def __init__(cls, world: carla.World, traffic_light: carla.TrafficLight):
-        cls.__world = world
-        cls.__traffic_light = traffic_light
+    def __init__(self, world: carla.World, traffic_light: carla.TrafficLight):
+        self.__world = world
+        self.__traffic_light = traffic_light
 
-    @classmethod
-    def get_state(cls):
+    def get_state(self):
         pass

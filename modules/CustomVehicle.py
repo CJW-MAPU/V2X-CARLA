@@ -1,27 +1,48 @@
+import threading
 import time
 import math
 import carla
 import random
 
 from modules.debug_tools import show_waypoints
+from modules.SRModuleOBU import SRModuleOBU
 
 
-class CustomVehicle:
+class CustomVehicle(SRModuleOBU):
     __vehicle: carla.Vehicle = None
     __world: carla.World = None
     __current_waypoint: carla.Waypoint = None
     __path: list = list()
+    __obu_id = None
 
-    @classmethod
-    def __init__(cls, world: carla.World):
-        cls.__world = world
+    def __init__(self, world: carla.World, obu_id):
+        self.__world = world
+        self.__obu_id = obu_id
+        super().__init__(obu_id)
+        super().init(port = 55555)
 
-    @classmethod
-    def spawn_vehicle(cls):
-        blueprint_library = cls.__world.get_blueprint_library()
+    def __heartbeat(self):
+        while True:
+            if self.__vehicle:
+                location = self.__vehicle.get_location()
+                lane_id = self.__world.get_map().get_waypoint(location).lane_id
+                super().set_state(
+                    {
+                        self.__obu_id: {
+                            "loc_x": location.x,
+                            "loc_y": location.y,
+                            "loc_z": location.z,
+                            "lane_id": lane_id
+                        }
+                    }
+                )
+            time.sleep(1)
+
+    def __spawn_vehicle(self):
+        blueprint_library = self.__world.get_blueprint_library()
         bp = random.choice(blueprint_library.filter('vehicle'))
 
-        world_map = cls.__world.get_map()
+        world_map = self.__world.get_map()
 
         if bp.has_attribute('color'):
             color = random.choice(bp.get_attribute('color').recommended_values)
@@ -29,83 +50,76 @@ class CustomVehicle:
 
         transform = random.choice(world_map.get_spawn_points())
 
-        cls.__vehicle = cls.__world.spawn_actor(bp, transform)
-        cls.__current_waypoint = world_map.get_waypoint(transform.location,
-                                                        project_to_road = True,
-                                                        lane_type = carla.LaneType.Driving)
-        if cls.__current_waypoint.is_junction:
-            if cls.__vehicle is not None:
-                cls.__vehicle.destroy()
-                cls.spawn_vehicle()
+        self.__vehicle = self.__world.spawn_actor(bp, transform)
+        self.__current_waypoint = world_map.get_waypoint(transform.location,
+                                                         project_to_road = True,
+                                                         lane_type = carla.LaneType.Driving)
+        if self.__current_waypoint.is_junction:
+            if self.__vehicle is not None:
+                self.__vehicle.destroy()
+                self.__spawn_vehicle()
 
-        debug_helper = cls.__world.debug
-        debug_helper.draw_point(cls.__current_waypoint.transform.location, size = 0.1, color = carla.Color(255, 0, 0), life_time = 0)
+        debug_helper = self.__world.debug
+        debug_helper.draw_point(self.__current_waypoint.transform.location, size = 0.1, color = carla.Color(255, 0, 0), life_time = 0)
 
-    @classmethod
-    def destroy_vehicle(cls) -> None:
-        if cls.__vehicle is not None:
-            cls.__vehicle.destroy()
+    def destroy_vehicle(self) -> None:
+        if self.__vehicle is not None:
+            self.__vehicle.destroy()
 
-    @classmethod
-    def pilot(cls) -> None:
+    def __pilot(self) -> None:
         while True:
-            if not cls.__current_waypoint.is_junction:
-                cls.__get_lane_path()
-                cls.__lane_autopilot()
+            if not self.__current_waypoint.is_junction:
+                self.__get_lane_path()
+                self.__lane_autopilot()
             else:
-                cls.__get_junction_path()
-                cls.__junction_autopilot()
+                self.__get_junction_path()
+                self.__junction_autopilot()
 
-    @classmethod
-    def __lane_autopilot(cls):
-        for target_waypoint in cls.__path:
+    def __lane_autopilot(self):
+        for target_waypoint in self.__path:
             while True:
-                control = cls.__calculate_control(target_waypoint)
-                cls.__vehicle.apply_control(control)
+                control = self.__calculate_control(target_waypoint)
+                self.__vehicle.apply_control(control)
                 time.sleep(0.05)
 
-                if cls.__vehicle.get_location().distance(target_waypoint.transform.location) < 2.0:
+                if self.__vehicle.get_location().distance(target_waypoint.transform.location) < 2.0:
                     break
 
-    @classmethod
-    def __junction_autopilot(cls):
-        for target_waypoint in cls.__path:
+    def __junction_autopilot(self):
+        for target_waypoint in self.__path:
             while True:
-                control = cls.__calculate_control(target_waypoint)
-                cls.__vehicle.apply_control(control)
+                control = self.__calculate_control(target_waypoint)
+                self.__vehicle.apply_control(control)
                 time.sleep(0.05)
 
-                if cls.__vehicle.get_location().distance(target_waypoint.transform.location) < 2.0:
+                if self.__vehicle.get_location().distance(target_waypoint.transform.location) < 2.0:
                     break
 
-    @classmethod
-    def __get_lane_path(cls):
-        cls.__path = cls.__current_waypoint.next_until_lane_end(2.0)
-        cls.__current_waypoint = cls.__path[-1].next(2)[0]
-        show_waypoints(cls.__world, cls.__path)
+    def __get_lane_path(self):
+        self.__path = self.__current_waypoint.next_until_lane_end(2.0)
+        self.__current_waypoint = self.__path[-1].next(2)[0]
+        show_waypoints(self.__world, self.__path)
 
-    @classmethod
-    def __get_junction_path(cls) -> None:
-        cls.__path = cls.__current_waypoint.get_junction().get_waypoints(carla.LaneType.Driving)
+    def __get_junction_path(self) -> None:
+        self.__path = self.__current_waypoint.get_junction().get_waypoints(carla.LaneType.Driving)
 
-        debug_helper = cls.__world.debug
+        debug_helper = self.__world.debug
 
-        for source, destination in cls.__path:
-            if cls.__current_waypoint.road_id == source.road_id and cls.__current_waypoint.road_id == destination.road_id\
-                    and cls.__current_waypoint.lane_id == source.lane_id and cls.__current_waypoint.lane_id == destination.lane_id:
+        for source, destination in self.__path:
+            if self.__current_waypoint.road_id == source.road_id and self.__current_waypoint.road_id == destination.road_id\
+                    and self.__current_waypoint.lane_id == source.lane_id and self.__current_waypoint.lane_id == destination.lane_id:
                 debug_helper.draw_point(source.transform.location, size = 0.1, color = carla.Color(0, 255, 0),
                                         life_time = 0)
                 debug_helper.draw_point(destination.transform.location, size = 0.1, color = carla.Color(0, 255, 0),
                                         life_time = 0)
-                cls.__path = source.next_until_lane_end(2.0)
-                cls.__current_waypoint = destination.next(2)[0]
-                show_waypoints(cls.__world, cls.__path)
+                self.__path = source.next_until_lane_end(2.0)
+                self.__current_waypoint = destination.next(2)[0]
+                show_waypoints(self.__world, self.__path)
                 break
 
-    @classmethod
-    def __calculate_control(cls, target_waypoint) -> carla.VehicleControl:
+    def __calculate_control(self, target_waypoint) -> carla.VehicleControl:
         control = carla.VehicleControl()
-        vehicle_transform = cls.__vehicle.get_transform()
+        vehicle_transform = self.__vehicle.get_transform()
         vehicle_location = vehicle_transform.location
         target_location = target_waypoint.transform.location
 
@@ -121,3 +135,13 @@ class CustomVehicle:
         control.brake = 0.0
 
         return control
+
+    def run(self):
+        try:
+            self.__spawn_vehicle()
+            threading.Thread(target = self.__pilot).start()
+            threading.Thread(target = self.__heartbeat).start()
+            super().run()
+            time.sleep(40)
+        except KeyboardInterrupt:
+            self.destroy_vehicle()

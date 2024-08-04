@@ -35,6 +35,7 @@ class GPSCentre:
     def broadcast(self):
         while True:
             print('[ GPSCentre.broadcast ]')
+            print(f'Send to client: {self.__state}')
             with self.lock:
                 state_copy = self.__state.copy()
             for client in self.__clients:
@@ -45,7 +46,7 @@ class GPSCentre:
                     self.__clients.remove(client)
             time.sleep(1)
 
-    def start_server(self):
+    def run(self):
         print(f'Server started and waiting for connections...')
         broadcast_thread = threading.Thread(target = self.broadcast)
         broadcast_thread.daemon = True
