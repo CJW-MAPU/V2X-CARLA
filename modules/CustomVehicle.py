@@ -14,33 +14,38 @@ class CustomVehicle(SRModuleOBU):
     __current_waypoint: carla.Waypoint = None
     __path: list = list()
     __obu_id = None
+    __port = None
 
-    def __init__(self, world: carla.World, obu_id):
+    def __init__(self, world: carla.World, obu_id, port):
         self.__world = world
         self.__obu_id = obu_id
-        super().__init__(obu_id)
-        super().init(port = 55555)
+        self.__port = port
+        super().__init__(obu_id = obu_id, vehicle_port = port)
+        super().init(gps_port = 55555)
 
     def __heartbeat(self):
         while True:
             if self.__vehicle:
                 location = self.__vehicle.get_location()
                 lane_id = self.__world.get_map().get_waypoint(location).lane_id
+                road_id = self.__world.get_map().get_waypoint(location).road_id
                 super().set_state(
                     {
                         self.__obu_id: {
                             "loc_x": location.x,
                             "loc_y": location.y,
                             "loc_z": location.z,
-                            "lane_id": lane_id
+                            "lane_id": lane_id,
+                            "road_id": road_id,
+                            "comm_port": self.__port
                         }
                     }
                 )
-            time.sleep(1)
 
     def __spawn_vehicle(self):
         blueprint_library = self.__world.get_blueprint_library()
-        bp = random.choice(blueprint_library.filter('vehicle'))
+        # bp = random.choice(blueprint_library.filter('vehicle'))
+        bp = blueprint_library.find('vehicle.tesla.model3')
 
         world_map = self.__world.get_map()
 
@@ -60,7 +65,7 @@ class CustomVehicle(SRModuleOBU):
                 self.__spawn_vehicle()
 
         debug_helper = self.__world.debug
-        debug_helper.draw_point(self.__current_waypoint.transform.location, size = 0.1, color = carla.Color(255, 0, 0), life_time = 0)
+        debug_helper.draw_point(self.__current_waypoint.transform.location, size = 0.1, color = carla.Color(255, 0, 0), life_time = 20)
 
     def destroy_vehicle(self) -> None:
         if self.__vehicle is not None:
@@ -109,9 +114,9 @@ class CustomVehicle(SRModuleOBU):
             if self.__current_waypoint.road_id == source.road_id and self.__current_waypoint.road_id == destination.road_id\
                     and self.__current_waypoint.lane_id == source.lane_id and self.__current_waypoint.lane_id == destination.lane_id:
                 debug_helper.draw_point(source.transform.location, size = 0.1, color = carla.Color(0, 255, 0),
-                                        life_time = 0)
+                                        life_time = 20)
                 debug_helper.draw_point(destination.transform.location, size = 0.1, color = carla.Color(0, 255, 0),
-                                        life_time = 0)
+                                        life_time = 20)
                 self.__path = source.next_until_lane_end(2.0)
                 self.__current_waypoint = destination.next(2)[0]
                 show_waypoints(self.__world, self.__path)
@@ -137,11 +142,13 @@ class CustomVehicle(SRModuleOBU):
         return control
 
     def run(self):
-        try:
-            self.__spawn_vehicle()
-            threading.Thread(target = self.__pilot).start()
-            threading.Thread(target = self.__heartbeat).start()
-            super().run()
-            time.sleep(40)
-        except KeyboardInterrupt:
-            self.destroy_vehicle()
+        threads = [
+            threading.Thread(target = self.__pilot),
+            threading.Thread(target = self.__heartbeat),
+        ]
+        self.__spawn_vehicle()
+        for thread in threads:
+            # thread.daemon = True
+            thread.start()
+        super().run()
+
