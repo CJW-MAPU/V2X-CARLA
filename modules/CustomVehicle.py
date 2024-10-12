@@ -81,7 +81,9 @@ class CustomVehicle(SRModuleOBU):
                 self.__junction_autopilot()
 
     def __lane_autopilot(self):
-        for target_waypoint in self.__path:
+        for i, target_waypoint in enumerate(self.__path):
+            print(f'waypoint len : {len(self.__path)}')
+            print(f'waypoint num : {i + 1}')
             while True:
                 control = self.__calculate_control(target_waypoint)
                 self.__vehicle.apply_control(control)
@@ -136,8 +138,40 @@ class CustomVehicle(SRModuleOBU):
 
         control.steer = max(-1.0, min(1.0, math.atan2(cross, dot) * 2.0))
 
-        control.throttle = 0.5
+        control.throttle = 0.4
         control.brake = 0.0
+        # control.hand_brake = False
+
+        try:
+            traffic_light_state = self.traffic_light_state["light_state"]
+            stop_waypoint_x = self.traffic_light_state["waypoint_x"]
+            stop_waypoint_y = self.traffic_light_state["waypoint_y"]
+            stop_waypoint_z = self.traffic_light_state["waypoint_z"]
+
+            stop_location = carla.Location(x = stop_waypoint_x, y = stop_waypoint_y, z = stop_waypoint_z)
+
+            # 차량 현재 위치에서 시작하는 waypoint를 가져옴
+            current_waypoint = self.__world.get_map().get_waypoint(vehicle_location)
+            stop_waypoint = self.__world.get_map().get_waypoint(stop_location)
+
+            # 곡선 거리 계산
+            total_distance = 0.0
+            while current_waypoint.transform.location.distance(stop_waypoint.transform.location) > 1.0:  # 멈출 위치까지 거리 확인
+                next_waypoints = current_waypoint.next(1.0)  # 1.0 미터 떨어진 다음 waypoint
+                if next_waypoints:
+                    next_waypoint = next_waypoints[0]  # 첫 번째 다음 waypoint 선택
+                    total_distance += current_waypoint.transform.location.distance(next_waypoint.transform.location)
+                    current_waypoint = next_waypoint
+                else:
+                    break  # 더 이상 waypoint가 없으면 종료
+
+            if traffic_light_state in [carla.TrafficLightState.Red, carla.TrafficLightState.Yellow]:
+                if total_distance <= 10.0:
+                    control.throttle = 0.0
+                    control.brake = 1.0
+                    # control.hand_brake = True
+        except KeyError:
+            pass
 
         return control
 

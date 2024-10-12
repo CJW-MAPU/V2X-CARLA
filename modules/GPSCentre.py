@@ -42,7 +42,7 @@ class GPSCentre:
                 except Exception as e:
                     print(f'Error broadcasting to client: {e}')
                     self.__clients.remove(client)
-            time.sleep(0.001)
+            time.sleep(0.1)
 
     def run(self):
         # print(f'Server started and waiting for connections...')
