@@ -82,33 +82,6 @@ class SRModuleRSU:
             # 통신 완료 후 communication_list 초기화
             self.__communication_list = []
             time.sleep(0.0001)
-        # while True:
-        #     if len(self.__communication_list) == 0:
-        #         continue
-        #     else:
-        #         with self.lock:
-        #             list_copy = self.__communication_list.copy()
-        #         for client in list_copy:
-        #             print(client)
-        #             for data in client.items():
-        #                 obu_id, comm_port = data
-        #                 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #                 client_socket.connect((host, comm_port))
-        #                 try:
-        #                     data = {
-        #                         'light_state': self.__light,
-        #                         'waypoint_x': waypoint.transform.location.x,
-        #                         'waypoint_y': waypoint.transform.location.y,
-        #                         'waypoint_z': waypoint.transform.location.z
-        #                     }
-        #                     message = json.dumps(data)
-        #                     client_socket.send(message.encode('utf-8'))
-        #                     time.sleep(0.001)
-        #                 except ConnectionRefusedError:
-        #                     print('Connection lost')
-        #
-        #     self.__communication_list = []
-        #     time.sleep(0.0001)
 
     def get_states(self):
         return self.__vehicle_states
